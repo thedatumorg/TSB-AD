@@ -56,16 +56,29 @@ class FFT(BaseDetector):
     @staticmethod
     def reduce_parameters(f: np.ndarray, k: int) -> np.ndarray:
         transformed = f.copy()
-        transformed[k:] = 0
+        if k == 1:
+            transformed[1:] = 0
+        else:
+            # keep the k lowest frequencies together with their negative-frequency
+            # conjugates, so the inverse transform stays real and the retained
+            # components keep their amplitude
+            transformed[k:-(k - 1)] = 0
         return transformed
 
     def calculate_local_outliers(self):
-        n = len(self.data)
+        data = np.asarray(self.data)
+        if data.ndim > 1:
+            if data.shape[1] != 1:
+                raise ValueError(
+                    "FFT expects a univariate series, got %d channels" % data.shape[1])
+            data = data[:, 0]
+
+        n = len(data)
         k = max(min(self.ifft_parameters, n), 1)
-        y = self.reduce_parameters(np.fft.fft(self.data), k)
+        y = self.reduce_parameters(np.fft.fft(data), k)
         f2 = np.real(np.fft.ifft(y))
 
-        so = np.abs(f2 - self.data)
+        so = np.abs(f2 - data)
         mso = np.mean(so)
         neighbor_c = self.local_neighbor_window // 2
 
@@ -73,8 +86,8 @@ class FFT(BaseDetector):
         score_idxs = []
         for i in range(n):
             if so[i] > mso:
-                nav = np.mean(self.data[max(i - neighbor_c, 0):min(i + neighbor_c + 1, n)])
-                scores.append(self.data[i] - nav)
+                nav = np.mean(data[max(i - neighbor_c, 0):min(i + neighbor_c + 1, n)])
+                scores.append(data[i] - nav)
                 score_idxs.append(i)
 
         if not scores:
