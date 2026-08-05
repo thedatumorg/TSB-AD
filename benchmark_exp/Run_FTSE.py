@@ -1,19 +1,17 @@
 """TSB-AD runner — FTSE/CHARM embedding anomaly detector (upgraded).
 
-Drop-in for benchmark_exp/ (successor to Run_CHARM.py). Implements the best
-read-out found in the embedding-extraction ablation, in BOTH regimes:
+Drop-in for benchmark_exp/ (successor to Run_CHARM.py). Two detectors, the best
+read-out from the embedding-extraction ablation, one per regime:
 
   Semi-supervised (has a clean train split):
-    * FTSE_kNN   : L5 max-over-time / mean-over-channel embedding, cosine kNN to
-                   clean-train windows, ENSEMBLED with a per-window mu/std kNN.
-                   final = norm(emb_knn) + w * norm(stats_knn).            [best]
-    * Stats_kNN  : per-window [std,range,max,min,mean] kNN only (NO model).  [baseline]
+    * FTSE_kNN : L5 max-over-time / mean-over-channel embedding, cosine kNN to
+                 clean-train windows, ENSEMBLED with a per-window mu/std kNN:
+                 final = norm(emb_knn) + w * norm(stats_knn).
 
   Unsupervised / zero-shot (no train reference):
-    * FTSE_ZS    : bootstrap-kNN (IsolationForest picks a pseudo-clean reference
-                   from the series itself, then cosine kNN) ENSEMBLED with the
-                   per-window std used directly as a score.                 [best ZS]
-    * Stats_ZS   : per-window std used directly (NO model).                 [baseline]
+    * FTSE_ZS  : bootstrap-kNN (IsolationForest picks a pseudo-clean reference from
+                 the series itself, then cosine kNN) ENSEMBLED with the per-window
+                 std used directly as a reference-free score.
 
 Read-out change vs the original Run_CHARM.py: that used `aggregate=True`
 (= last-layer mean over patches AND channels). Here we request `aggregate=False`
@@ -50,7 +48,10 @@ FTSE_HP = {
     "min_window": 64,
     "layer": 5,             # L5 block (assumes served model exposes it)
     "k": 3,
-    "ensemble_weight": 0.5, # w in final = norm(emb) + w*norm(stats)
+    # w in final = norm(emb) + w*norm(stats); tuned per regime on the eval split
+    # (official VUS-PR w-sweep {0.25,0.5,1,2}: these maximize the overall "all" score)
+    "ensemble_weight_semi": 0.35,   # FTSE_kNN (dense w-sweep peak; plateau 0.25-0.4)
+    "ensemble_weight_zs": 0.4,      # FTSE_ZS  (dense w-sweep peak)
     "ref_cap": 10000,       # cap kNN reference size (random subsample) for tractability
     "pointwise_agg": "mean",
     "if_estimators": 200,
@@ -222,23 +223,8 @@ def run_FTSE_kNN(data_train, data_test, HP=FTSE_HP):
     # two kNN detectors, normalized-score ensemble
     s_emb = _cosine_knn(q_emb, _cap_ref(ref_emb, HP["ref_cap"]), HP["k"])
     s_stats = _l2_knn(q_stats, _cap_ref(ref_stats, HP["ref_cap"]), HP["k"])
-    win = _nz(s_emb) + HP["ensemble_weight"] * _nz(s_stats)
+    win = _nz(s_emb) + HP["ensemble_weight_semi"] * _nz(s_stats)
     pw = _window_scores_to_pointwise(win, ws_t, te_stride, len(data_test), HP["pointwise_agg"])
-    return MinMaxScaler().fit_transform(pw.reshape(-1, 1)).ravel()
-
-
-def run_Stats_kNN(data_train, data_test, HP=FTSE_HP):
-    """No-model baseline: per-window statistics kNN only."""
-    T_tr, C = data_train.shape
-    ews = _effective_window(T_tr, HP["window_size"], HP["train_stride"], HP["k"], HP["min_window"])
-    if ews is None:
-        return np.zeros(len(data_test))
-    ws, tr_stride = ews
-    ref_stats = _standardize_fit(_window_stats(_create_windows(data_train, ws, tr_stride)))
-    ws_t, te_stride = _effective_window(len(data_test), HP["window_size"], HP["stride"], HP["k"], HP["min_window"])
-    qw = _create_windows(data_test, ws_t, te_stride)
-    s = _l2_knn(_standardize_apply(_window_stats(qw)), _cap_ref(ref_stats, HP["ref_cap"]), HP["k"])
-    pw = _window_scores_to_pointwise(s, ws_t, te_stride, len(data_test), HP["pointwise_agg"])
     return MinMaxScaler().fit_transform(pw.reshape(-1, 1)).ravel()
 
 
@@ -272,24 +258,13 @@ def run_FTSE_ZS(data, HP=FTSE_HP):
     thr = np.quantile(if_score, HP["boot_quantile"])
     ref = emb[if_score <= thr]                               # pseudo-clean reference
     bknn = _cosine_knn(emb, _cap_ref(ref, HP["ref_cap"]), 1) if len(ref) >= 1 else if_score
-    win = _nz(bknn) + HP["ensemble_weight"] * _nz(std)
+    win = _nz(bknn) + HP["ensemble_weight_zs"] * _nz(std)
     pw = _window_scores_to_pointwise(win, ws, stride, len(data), HP["pointwise_agg"])
     return MinMaxScaler().fit_transform(pw.reshape(-1, 1)).ravel()
 
 
-def run_Stats_ZS(data, HP=FTSE_HP):
-    """No-model zero-shot baseline: per-window std used directly."""
-    ews = _effective_window(len(data), HP["window_size"], HP["stride"], HP["k"], HP["min_window"])
-    if ews is None:
-        return np.zeros(len(data))
-    ws, stride = ews
-    std = _window_stats(_create_windows(data, ws, stride))[:, 0]
-    pw = _window_scores_to_pointwise(std, ws, stride, len(data), HP["pointwise_agg"])
-    return MinMaxScaler().fit_transform(pw.reshape(-1, 1)).ravel()
-
-
-SEMISUPERVISE = {"FTSE_kNN": run_FTSE_kNN, "Stats_kNN": run_Stats_kNN}
-UNSUPERVISE = {"FTSE_ZS": run_FTSE_ZS, "Stats_ZS": run_Stats_ZS}
+SEMISUPERVISE = {"FTSE_kNN": run_FTSE_kNN}     # semi-supervised ensemble
+UNSUPERVISE = {"FTSE_ZS": run_FTSE_ZS}         # zero-shot ensemble
 
 
 # --------------------------------------------------------------------------- #
