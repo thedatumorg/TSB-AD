@@ -18,7 +18,7 @@ def SR(X, window_size):
     window_amp = 100
 
     pad_left = (window_amp - 1) // 2
-    padded_freq = np.concatenate([np.tile(X[0], pad_left), freq, np.tile(X[-1], window_amp - pad_left - 1)])
+    padded_freq = np.concatenate([np.tile(freq[0], pad_left), freq, np.tile(freq[-1], window_amp - pad_left - 1)])
     conv_amp = np.ones(window_amp) / window_amp
     ma_freq = np.convolve(padded_freq, conv_amp, 'valid')
     # construct moving average log amplitude spectrum
