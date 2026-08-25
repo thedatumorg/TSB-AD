@@ -1,3 +1,4 @@
+# Implementation of AxonAD model from Özer, Ebeling and Enzweiler https://arxiv.org/abs/2603.12916
 from __future__ import division, print_function
 
 import numpy as np
