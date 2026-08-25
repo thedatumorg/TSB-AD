@@ -8,7 +8,7 @@ from .utils.slidingWindows import find_length_rank
 Unsupervise_AD_Pool = ['FFT', 'SR', 'NORMA', 'Series2Graph', 'Sub_IForest', 'IForest', 'LOF', 'Sub_LOF', 'POLY', 'MatrixProfile', 'Sub_PCA', 'PCA', 'HBOS',
                         'Sub_HBOS', 'KNN', 'Sub_KNN','KMeansAD', 'KMeansAD_U', 'KShapeAD', 'COPOD', 'CBLOF', 'COF', 'EIF', 'RobustPCA', 'MMPAD', 'Lag_Llama', 'TimesFM', 'Chronos', 'MOMENT_ZS', 'TSPulse_ZS', 'Time_RCD', 'HSF_U', 'HSF_Causal']
 Semisupervise_AD_Pool = ['Left_STAMPi', 'SAND', 'MCD', 'Sub_MCD', 'OCSVM', 'Sub_OCSVM', 'AutoEncoder', 'CNN', 'LSTMAD', 'TranAD', 'USAD', 'OmniAnomaly', 'PatchTST',
-                        'AnomalyTransformer', 'TimesNet', 'FITS', 'Donut', 'OFA', 'MOMENT_FT', 'M2N2', 'TSPulse_FT', 'xLSTMAD', 'CHARM', 'StreamVAE', 'HSF', 'PaAno_PAI', 'SHADE', 'TimeRCD_MAFT']
+                        'AnomalyTransformer', 'TimesNet', 'FITS', 'Donut', 'OFA', 'MOMENT_FT', 'M2N2', 'TSPulse_FT', 'xLSTMAD', 'CHARM', 'StreamVAE', 'HSF', 'PaAno_PAI', 'SHADE', 'TimeRCD_MAFT', 'AxonAD']
 
 def run_Unsupervise_AD(model_name, data, **kwargs):
     try:
@@ -620,3 +620,25 @@ def run_TimeRCD_MAFT_FT(
 
 def run_TimeRCD_MAFT(*args, **kwargs):
     return run_TimeRCD_MAFT_FT(*args, **kwargs)
+
+def run_AxonAD(
+        data_train, data_test, win_size=100, d_model=64, num_heads=4,
+        batch_size=128, epochs=50, lr=0.001, validation_size=0.2,
+        kl_tail_k=5, forecast_steps=1
+    ):
+    from .models.AxonAD import TCNTransformer
+    clf = TCNTransformer(
+        win_size=win_size,
+        feats=data_test.shape[1],
+        d_model=d_model,
+        num_heads=num_heads,
+        batch_size=batch_size,
+        epochs=epochs,
+        lr=lr,
+        validation_size=validation_size,
+        kl_tail_k=kl_tail_k,
+        forecast_steps=forecast_steps
+    )
+    clf.fit(data_train)
+    score = clf.decision_function(data_test)
+    return score.ravel()
