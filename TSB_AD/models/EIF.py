@@ -419,7 +419,7 @@ class EIF(BaseDetector):
         #     ExtensionLevel=self.extension_level,
         # )
 
-        if self.normalize: X = zscore(X, axis=1, ddof=1)
+        if self.normalize: X = zscore(X, axis=0, ddof=0)
 
         eif = iForest(
             X,

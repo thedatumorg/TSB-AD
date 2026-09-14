@@ -182,11 +182,7 @@ class IForest(BaseDetector):
 
         # Converting time series data into matrix format
         X = Window(window = self.slidingWindow).convert(X)        
-        if self.normalize: 
-            if n_features == 1:
-                X = zscore(X, axis=0, ddof=0)
-            else: 
-                X = zscore(X, axis=1, ddof=1)
+        if self.normalize: X = zscore(X, axis=0, ddof=0)
 
         # validate inputs X and y (optional)
         X = check_array(X)
@@ -240,11 +236,7 @@ class IForest(BaseDetector):
         n_samples, n_features = X.shape
         # Converting time series data into matrix format
         X = Window(window = self.slidingWindow).convert(X)
-        if self.normalize: 
-            if n_features == 1:
-                X = zscore(X, axis=0, ddof=0)
-            else: 
-                X = zscore(X, axis=1, ddof=1)
+        if self.normalize: X = zscore(X, axis=0, ddof=0)
                 
         # invert outlier scores. Outliers comes with higher outlier scores
         decision_scores_ = invert_order(self.detector_.decision_function(X))

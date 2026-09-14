@@ -12,7 +12,6 @@ import math
 from sklearn.svm import OneClassSVM
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_is_fitted
-from sklearn.preprocessing import MinMaxScaler
 
 from .feature import Window
 from .base import BaseDetector
@@ -159,16 +158,10 @@ class OCSVM(BaseDetector):
 
         # Converting time series data into matrix format
         X = Window(window = self.slidingWindow).convert(X)
-        if self.normalize: 
-            if n_features == 1:
-                X = zscore(X, axis=0, ddof=0)
-            else: 
-                X = zscore(X, axis=1, ddof=1)
+        if self.normalize: X = zscore(X, axis=0, ddof=0)
 
         # validate inputs X and y (optional)
         X = check_array(X)
-        self.scaler_ = MinMaxScaler(feature_range=(0, 1)).fit(X.T)
-        X = self.scaler_.transform(X.T).T
 
         self._set_n_classes(y)
 
@@ -209,20 +202,15 @@ class OCSVM(BaseDetector):
         anomaly_scores : numpy array of shape (n_samples,)
             The anomaly score of the input samples.
         """
-        check_is_fitted(self, ['decision_scores_', 'threshold_', 'labels_', 'scaler_'])
+        check_is_fitted(self, ['decision_scores_', 'threshold_', 'labels_'])
 
         n_samples, n_features = X.shape
 
         # Converting time series data into matrix format
         X = Window(window = self.slidingWindow).convert(X)
-        if self.normalize:
-            if n_features == 1:
-                X = zscore(X, axis=0, ddof=0)
-            else:
-                X = zscore(X, axis=1, ddof=1)
+        if self.normalize: X = zscore(X, axis=0, ddof=0)
 
         X = check_array(X)
-        X = self.scaler_.transform(X.T).T
 
         # invert outlier scores. Outliers comes with higher outlier scores
         decision_scores_ = invert_order(self.detector_.decision_function(X))

@@ -105,7 +105,7 @@ class COPOD(BaseDetector):
             Fitted estimator.
         """
         X = check_array(X)
-        if self.normalize: X = zscore(X, axis=1, ddof=1)
+        if self.normalize: X = zscore(X, axis=0, ddof=0)
 
         self._set_n_classes(y)
         self.decision_scores_ = self.decision_function(X)

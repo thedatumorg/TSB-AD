@@ -24,11 +24,7 @@ class FFT(BaseDetector):
     def fit(self, X, y=None):
         """Fit detector. y is ignored in unsupervised methods."""
         n_samples, n_features = X.shape
-        if self.normalize: 
-            if n_features == 1:
-                X = zscore(X, axis=0, ddof=0)
-            else:
-                X = zscore(X, axis=1, ddof=1)
+        if self.normalize: X = zscore(X, axis=0, ddof=0)
         self.data = X
         self.decision_scores_ = self.detect_anomalies()  
         return self
