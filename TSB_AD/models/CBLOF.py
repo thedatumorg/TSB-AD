@@ -166,7 +166,7 @@ class CBLOF(BaseDetector):
         X = check_array(X)
         self._set_n_classes(y)
         n_samples, n_features = X.shape
-        if self.normalize: X = zscore(X, axis=1, ddof=1)
+        if self.normalize: X = zscore(X, axis=0, ddof=0)
 
         # check parameters
         # number of clusters are default to 8
