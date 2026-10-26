@@ -8,6 +8,14 @@ Required environment:
 
 Optional environment:
     SHADE_BASE_URL=https://shade.avara-ai.com
+    SHADE_M_CLIENT_COORDINATES_CONFIG=<shared-coordinate JSON path>
+
+The M coordinate option retains float64 measurements until the full reference
+and suffix matrix is assembled, then normalizes once before float32 transport.
+This targets unit changes that lose small-channel precision during narrowing.
+Set HP["m_signal_coordinates"] to the coordinate configuration dictionary, as
+in TSB-AD's Optimal_Multi_algo_HP_dict. The external JSON path is optional;
+an explicit HP selection takes precedence over the environment variable.
 """
 
 from __future__ import annotations
@@ -19,6 +27,7 @@ import re
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
@@ -35,6 +44,72 @@ SHADE_AD_HP = {"HP": {"base_url": DEFAULT_BASE_URL, "split": "eval"}}
 SHADE_HP = {"HP": {"base_url": DEFAULT_BASE_URL, "split": "eval"}}
 
 
+def validate_coordinate_config(config: dict[str, Any]) -> None:
+    """Validate the explicit client-side M coordinate contract."""
+    required = {"schema", "enabled", "mode", "zero_tolerance_ulps"}
+    if (not required <= set(config)
+            or set(config) - (required | {"float32_tie_cell_fraction"})
+            or config["schema"] != "shade_m_client_coordinates_v1"
+            or type(config["enabled"]) is not bool
+            or config["mode"] != "shared_median_maxabs"
+            or type(config["zero_tolerance_ulps"]) is not int
+            or not 0 <= config["zero_tolerance_ulps"] <= 64
+            or type(config.get("float32_tie_cell_fraction", 0)) not in {int, float}
+            or not 0 <= config.get("float32_tie_cell_fraction", 0) <= 1e-3):
+        raise ValueError("Invalid M client coordinate configuration")
+
+
+def shared_affine_coordinates(values: np.ndarray, config: dict[str, Any]) -> np.ndarray:
+    """Return float32 ``[time, channels]`` after shared float64 normalization.
+
+    The caller must assemble reference and suffix before calling this once.
+    Float32 inputs cannot regain precision already lost upstream. Single
+    channel inputs and explicitly disabled configurations retain legacy values.
+    No labels, filename metadata, or fitted anomaly parameters are used.
+    """
+    validate_coordinate_config(config)
+    x = np.asarray(values, dtype=np.float64)
+    if x.ndim == 1:
+        x = x[:, None]
+    if x.ndim != 2 or not x.size or not np.isfinite(x).all():
+        raise ValueError("Client coordinates require a nonempty finite [time, channels] array")
+    if not config["enabled"] or x.shape[1] == 1:
+        return x.astype(np.float32)
+    centered = x - float(np.median(x))
+    scale = float(np.max(np.abs(centered)))
+    if scale == 0.:
+        return np.zeros(x.shape, dtype=np.float32)
+    if not np.isfinite(scale):
+        raise ValueError("M client coordinate range exceeds float64")
+    result = centered / scale
+    bound = config["zero_tolerance_ulps"] * np.finfo(np.float64).eps
+    result[np.abs(result) <= bound] = 0.
+    rounded = result.astype(np.float32)
+    tolerance = config.get("float32_tie_cell_fraction", 0.)
+    if tolerance:
+        # Subtraction after a unit offset can move an exact float32 half-tie
+        # by float64 roundoff. Resolve a configured narrow fraction of that
+        # cell away from zero. Relative cell width retains tiny channels'
+        # precision. Work in bounded blocks to avoid several full-size
+        # float64 temporaries for the largest multivariate requests.
+        # Both arrays retain the same layout. pandas commonly supplies
+        # Fortran-contiguous matrices; a C-order reshape would update a copy.
+        source, target = result.ravel(order="K"), rounded.ravel(order="K")
+        for start in range(0, source.size, 1_048_576):
+            raw = source[start:start + 1_048_576]
+            block = target[start:start + 1_048_576]
+            chosen = block.astype(np.float64)
+            direction = np.where(chosen > raw, -np.inf, np.inf).astype(np.float32)
+            neighbor = np.nextafter(block, direction).astype(np.float64)
+            midpoint = (chosen + neighbor) * .5
+            width = np.abs(chosen - neighbor)
+            bound = tolerance * width
+            near = np.abs(raw - midpoint) <= bound
+            away = np.where(np.abs(chosen) >= np.abs(neighbor), chosen, neighbor)
+            block[near] = away[near].astype(np.float32)
+    return rounded
+
+
 class SHADE_AD(BaseDetector):
     def __init__(self, HP: Optional[dict[str, Any]] = None, normalize: bool = True) -> None:
         super().__init__()
@@ -44,7 +119,7 @@ class SHADE_AD(BaseDetector):
         self.decision_scores_: Optional[np.ndarray] = None
 
     def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> "SHADE_AD":
-        values = _as_2d(X)
+        values = _as_2d(X, preserve_precision=_coordinate_config(self.HP) is not None)
         self.reference_ = values
         if not self.HP.get("_semisupervised", False):
             self.decision_scores_ = _endpoint_score(
@@ -61,7 +136,7 @@ class SHADE_AD(BaseDetector):
     def decision_function(self, X: np.ndarray) -> np.ndarray:
         if self.reference_ is None:
             raise RuntimeError("SHADE_AD must be fit before decision_function.")
-        values = _as_2d(X)
+        values = _as_2d(X, preserve_precision=_coordinate_config(self.HP) is not None)
         reference = self.reference_
 
         if (
@@ -104,7 +179,7 @@ def run_SHADE_AD_Semisupervised(
 ) -> np.ndarray:
     hp = _coerce_hp(HP, **kwargs)
     hp["_semisupervised"] = True
-    full_series = _is_full_series_with_prefix(data_train, data_test)
+    full_series = _is_full_series_with_prefix(data_train, data_test, hp=hp)
     clf = SHADE_AD(HP=hp)
     clf.fit(data_train)
     score = _minmax01(clf.decision_function(data_test))
@@ -140,11 +215,14 @@ def _endpoint_score(
     if not api_key:
         raise RuntimeError("SHADE_API_KEY is required for endpoint-backed leaderboard evaluation.")
 
+    coordinate_config = _coordinate_config(hp)
+    transported = (shared_affine_coordinates(values, coordinate_config)
+                   if coordinate_config is not None else np.asarray(values, dtype=np.float32))
     payload = {
         "series_name": _sanitize_series_name(series_name),
         "split": split,
         "train_prefix_length": int(train_prefix_length),
-        "values": np.asarray(values, dtype=np.float32).tolist(),
+        "values": transported.tolist(),
     }
     body = gzip.compress(json.dumps(payload).encode("utf-8"), compresslevel=6)
     headers = {
@@ -198,8 +276,20 @@ def _default_model_id(values: np.ndarray) -> str:
     return M_MODEL_ID if _as_2d(values).shape[1] > 1 else U_MODEL_ID
 
 
-def _as_2d(values: np.ndarray) -> np.ndarray:
-    array = np.asarray(values, dtype=np.float32)
+def _coordinate_config(hp: dict[str, Any]) -> dict[str, Any] | None:
+    """Select M transport coordinates from HPs or an explicit config path."""
+    selected = hp.get("m_signal_coordinates", os.getenv("SHADE_M_CLIENT_COORDINATES_CONFIG", "off"))
+    if selected is None or (isinstance(selected, str) and selected.lower() in {"", "off", "none", "0"}):
+        return None
+    config = dict(selected) if isinstance(selected, dict) else json.loads(Path(selected).read_text())
+    validate_coordinate_config(config)
+    return config if config["enabled"] else None
+
+
+def _as_2d(values: np.ndarray, *, preserve_precision: bool = False) -> np.ndarray:
+    raw = np.asarray(values)
+    multivariate = raw.ndim == 2 and raw.shape[1] > 1
+    array = np.asarray(raw, dtype=np.float64 if preserve_precision and multivariate else np.float32)
     if array.ndim == 1:
         array = array[:, None]
     if array.ndim != 2:
@@ -207,9 +297,10 @@ def _as_2d(values: np.ndarray) -> np.ndarray:
     return array
 
 
-def _is_full_series_with_prefix(data_train: np.ndarray, data_test: np.ndarray) -> bool:
-    train = _as_2d(data_train)
-    test = _as_2d(data_test)
+def _is_full_series_with_prefix(data_train: np.ndarray, data_test: np.ndarray, *, hp: dict[str, Any] | None = None) -> bool:
+    preserve = _coordinate_config(hp or {}) is not None
+    train = _as_2d(data_train, preserve_precision=preserve)
+    test = _as_2d(data_test, preserve_precision=preserve)
     return test.shape[0] >= train.shape[0] and test.shape[1] == train.shape[1] and np.array_equal(test[: train.shape[0]], train)
 
 
