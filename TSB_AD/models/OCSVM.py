@@ -9,6 +9,7 @@ from __future__ import print_function
 
 import numpy as np
 import math
+from sklearn.base import BaseEstimator
 from sklearn.svm import OneClassSVM
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_is_fitted
@@ -18,7 +19,7 @@ from .base import BaseDetector
 from ..utils.utility import invert_order
 from ..utils.utility import zscore
 
-class OCSVM(BaseDetector):
+class OCSVM(BaseDetector, BaseEstimator):
     """Wrapper of scikit-learn one-class SVM Class with more functionalities.
     Unsupervised Outlier Detection.
 
