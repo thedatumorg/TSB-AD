@@ -6,7 +6,7 @@ from sklearn.preprocessing import MinMaxScaler
 from .utils.slidingWindows import find_length_rank
 
 Unsupervise_AD_Pool = ['FFT', 'SR', 'NORMA', 'Series2Graph', 'Sub_IForest', 'IForest', 'LOF', 'Sub_LOF', 'POLY', 'MatrixProfile', 'Sub_PCA', 'PCA', 'HBOS',
-                        'Sub_HBOS', 'KNN', 'Sub_KNN','KMeansAD', 'KMeansAD_U', 'KShapeAD', 'COPOD', 'CBLOF', 'COF', 'EIF', 'RobustPCA', 'MMPAD', 'Lag_Llama', 'TimesFM', 'Chronos', 'MOMENT_ZS', 'TSPulse_ZS', 'Time_RCD', 'HSF_U', 'HSF_Causal']
+                        'Sub_HBOS', 'KNN', 'Sub_KNN','KMeansAD', 'KMeansAD_U', 'KShapeAD', 'COPOD', 'CBLOF', 'COF', 'EIF', 'RobustPCA', 'MMPAD', 'Lag_Llama', 'TimesFM', 'Chronos', 'MOMENT_ZS', 'TSPulse_ZS', 'Time_RCD', 'HSF_U', 'HSF_Causal', 'Tremor']
 Semisupervise_AD_Pool = ['Left_STAMPi', 'SAND', 'MCD', 'Sub_MCD', 'OCSVM', 'Sub_OCSVM', 'AutoEncoder', 'CNN', 'LSTMAD', 'TranAD', 'USAD', 'OmniAnomaly', 'PatchTST',
                         'AnomalyTransformer', 'TimesNet', 'FITS', 'Donut', 'OFA', 'MOMENT_FT', 'M2N2', 'TSPulse_FT', 'xLSTMAD', 'CHARM', 'StreamVAE', 'HSF', 'PaAno_PAI', 'SHADE', 'TimeRCD_MAFT', 'AxonAD', 'VERITY_AD', 'Syntropic']
 
@@ -653,3 +653,8 @@ def run_VERITY_AD(data_train, data_test, **kwargs):
     score = run_VERITY_AD_Semisupervised(data_train, data_test, HP=kwargs)
     return np.asarray(score).ravel()
 
+def run_Tremor(data, **HP):
+    # pip install git+https://github.com/KenWuqianghao/tremor
+    from tremor import run_Tremor_Unsupervised
+    score = run_Tremor_Unsupervised(data, **HP)
+    return score.ravel()
