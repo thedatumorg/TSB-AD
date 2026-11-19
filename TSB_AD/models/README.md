@@ -1,9 +1,5 @@
 ### Extra Installation Direction
 
-For Anlu, install `torch>=2.1`, `safetensors>=0.4`, and `huggingface_hub>=0.23`.
-Weights are downloaded from [thu-sail-lab/Anlu](https://huggingface.co/thu-sail-lab/Anlu),
-or loaded from `ANLU_CHECKPOINT` for offline use.
-
 If you want to use [Chronos](https://github.com/amazon-science/chronos-forecasting), please install the following
 ```bash
 git clone https://github.com/autogluon/autogluon
