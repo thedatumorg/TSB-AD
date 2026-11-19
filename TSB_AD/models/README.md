@@ -1,10 +1,8 @@
 ### Extra Installation Direction
 
-For [Anlu](../../tutorials/Anlu.md), install `torch>=2.1`, `safetensors>=0.4`,
-and `huggingface_hub>=0.23`. The frozen s38000 weights are loaded from
-`thu-sail-lab/Anlu`, or from `ANLU_CHECKPOINT` for offline use. The inference
-architecture is included in this repository. See the tutorial for the official
-TSB-AD-U evaluation command and fixed reference/query protocol.
+For Anlu, install `torch>=2.1`, `safetensors>=0.4`, and `huggingface_hub>=0.23`.
+Weights are downloaded from [thu-sail-lab/Anlu](https://huggingface.co/thu-sail-lab/Anlu),
+or loaded from `ANLU_CHECKPOINT` for offline use.
 
 If you want to use [Chronos](https://github.com/amazon-science/chronos-forecasting), please install the following
 ```bash
