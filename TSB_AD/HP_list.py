@@ -290,6 +290,7 @@ Uni_algo_HP_dict = {
 }
 
 Optimal_Uni_algo_HP_dict = {
+    "Anlu": {"window_size": 10000, "stride": 1500, "batch_size": 8, "reference_length": 10000},
     'Sub_IForest': {'periodicity': 1, 'n_estimators': 150},
     'IForest': {'n_estimators': 200},
     'Sub_LOF': {'periodicity': 2, 'n_neighbors': 30},
