@@ -1,0 +1,22 @@
+{
+  "scope": "current upstream TSB-AD-U Eva350 Full-series",
+  "rows": 350,
+  "upstream_commit": "303dffbfc11612995b17b06633f8c9d0ea0e38e5",
+  "VUS-PR": 0.5992806629545117,
+  "thresholds": 250,
+  "metric_window_rule": "TSB_AD.utils.slidingWindows.find_length_rank(rank=1), unmodified",
+  "metric_code_sha256": "1fcddedf5ada1d5221f39ee568c7fddb9e7181bd7e1c19636c2cbecf40c97707",
+  "metric_window_code_sha256": "0ba65735c6572cd80e586409d4f653253d847e08fbae8e1da6e474e142e74af6",
+  "checkpoint_sha256": "aad7c29293665fc9c6dbed7db2798cf9d1986ba4fc53694d1bd2c7e9f90388d8",
+  "checkpoint_tensors": 331,
+  "exported_tensors_bitwise_equal": true,
+  "score_replication_max_absolute_error": 2.288818359375e-05,
+  "original_metric_max_error": 3.3306690738754696e-16,
+  "official_cli_two_series_score_max_error": 0.0,
+  "verified_metrics": "VUS-PR for all 350 cases; all nine benchmark metrics in the two-series CLI integration test",
+  "unit_tests_passed": 4,
+  "cpu_short_constant_sequences": "passed",
+  "torch": "2.11.0",
+  "numpy": "2.2.6",
+  "python": "3.10.20"
+}
