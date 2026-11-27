@@ -225,6 +225,7 @@ We organize the detection algorithms in TSB-AD in the following three categories
 |COPOD|is a copula-based parameter-free detection algorithm, which first constructs an empirical copula, and then uses it to predict tail probabilities of each given data point to determine its level of extremeness.|
 |Series2Graph| converts the time series into a directed graph representing the evolution of subsequences in time. The anomalies are detected using the weight and the degree of the nodes and edges respectively.|
 |SAND| identifies the normal pattern based on clustering updated through arriving batches (i.e., subsequences) and calculates each point's effective distance to the normal pattern.|
+|GravBits|learns the recurring joint states of a multivariate series as self-organising gravity wells (softened, screened gravitational mean shift over byte-scaled time steps) from the train prefix, then scores each time step by its code length in bits under the frozen model, so a combination of values never seen together is expensive even when each channel is normal on its own.|
 
 
 #### (ii) Neural Network-based Method
